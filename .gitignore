@@ -1,0 +1,22 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
+
+# CMake
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+.cache/
+compile_commands.json
+
+# OS
+.DS_Store
