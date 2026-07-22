@@ -45,9 +45,16 @@ static const char *TAG = "display_image";
 #define LCD_MIRROR_Y false
 
 // The embedded image lives in memory-mapped flash, which SPI DMA cannot read
-// from. Each chunk is staged through an internal-RAM bounce buffer.
-#define CHUNK_ROWS 24
-#define CHUNK_BYTES (LCD_H_RES * CHUNK_ROWS * 2)
+// from, so it is staged through one internal-RAM buffer.
+//
+// The whole frame is staged at once, deliberately. esp_lcd_panel_draw_bitmap()
+// only *queues* the SPI transaction (see esp_lcd_panel_io_spi.c: it calls
+// spi_device_queue_trans and returns), so the buffer it was handed must stay
+// untouched until the DMA has drained. A smaller buffer reused per row-chunk
+// looks frugal but overwrites pixels that are still being clocked out, which
+// showed up on the panel as the last slice drawn twice. One buffer, written
+// once, never reused and never freed, has no such window.
+#define FRAME_BYTES (LCD_H_RES * LCD_V_RES * 2)
 
 extern const uint8_t image_start[] asm("_binary_image_rgb565_start");
 extern const uint8_t image_end[] asm("_binary_image_rgb565_end");
@@ -61,8 +68,7 @@ static esp_err_t init_panel(esp_lcd_panel_io_handle_t *out_io,
         .miso_io_num = -1,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        // Sized for one chunk, not one frame — nothing larger is ever sent.
-        .max_transfer_sz = CHUNK_BYTES,
+        .max_transfer_sz = FRAME_BYTES,
     };
     ESP_RETURN_ON_ERROR(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO),
                         TAG, "spi_bus_initialize failed");
@@ -107,30 +113,19 @@ static esp_err_t init_panel(esp_lcd_panel_io_handle_t *out_io,
 static esp_err_t draw_image(esp_lcd_panel_handle_t panel)
 {
     const size_t image_bytes = (size_t)(image_end - image_start);
-    const size_t expected = (size_t)LCD_H_RES * LCD_V_RES * 2;
-    if (image_bytes != expected) {
+    if (image_bytes != FRAME_BYTES) {
         ESP_LOGE(TAG, "image.rgb565 is %u bytes, expected %u (%dx%d RGB565)",
-                 (unsigned)image_bytes, (unsigned)expected, LCD_H_RES, LCD_V_RES);
+                 (unsigned)image_bytes, (unsigned)FRAME_BYTES, LCD_H_RES, LCD_V_RES);
         return ESP_ERR_INVALID_SIZE;
     }
 
-    uint8_t *chunk = heap_caps_malloc(CHUNK_BYTES, MALLOC_CAP_DMA);
-    ESP_RETURN_ON_FALSE(chunk != NULL, ESP_ERR_NO_MEM, TAG, "no DMA memory for chunk buffer");
+    // Never freed: the DMA may still be reading it after draw_bitmap returns,
+    // and the app holds one image for the rest of its life anyway.
+    uint8_t *frame = heap_caps_malloc(FRAME_BYTES, MALLOC_CAP_DMA);
+    ESP_RETURN_ON_FALSE(frame != NULL, ESP_ERR_NO_MEM, TAG, "no DMA memory for frame buffer");
 
-    esp_err_t err = ESP_OK;
-    for (int y = 0; y < LCD_V_RES; y += CHUNK_ROWS) {
-        const int rows = (y + CHUNK_ROWS > LCD_V_RES) ? (LCD_V_RES - y) : CHUNK_ROWS;
-        const size_t bytes = (size_t)rows * LCD_H_RES * 2;
-        memcpy(chunk, image_start + (size_t)y * LCD_H_RES * 2, bytes);
-        err = esp_lcd_panel_draw_bitmap(panel, 0, y, LCD_H_RES, y + rows, chunk);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "draw_bitmap failed at row %d: %s", y, esp_err_to_name(err));
-            break;
-        }
-    }
-
-    heap_caps_free(chunk);
-    return err;
+    memcpy(frame, image_start, FRAME_BYTES);
+    return esp_lcd_panel_draw_bitmap(panel, 0, 0, LCD_H_RES, LCD_V_RES, frame);
 }
 
 void app_main(void)
