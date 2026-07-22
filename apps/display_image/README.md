@@ -40,10 +40,22 @@ are packed big-endian; writing native little-endian `uint16_t` swaps every pixel
 `make_test_pattern.py` imports the packer from `png_to_rgb565.py` so the two
 cannot drift apart.
 
-The embedded blob lives in memory-mapped flash, which SPI DMA cannot read from.
-Each 24-row chunk is copied into a `MALLOC_CAP_DMA` bounce buffer first, and the
-SPI bus `max_transfer_sz` is sized for one chunk (11520 bytes) rather than a full
-frame (115200).
+The embedded blob lives in memory-mapped flash, which SPI DMA cannot read from,
+so it is copied into a `MALLOC_CAP_DMA` buffer first — the **whole frame at
+once**, 115200 bytes, drawn in a single call and then never reused or freed.
+
+That is deliberate, and the frugal-looking alternative is a trap.
+`esp_lcd_panel_draw_bitmap()` does not block: it queues the SPI transaction and
+returns, so the buffer must stay untouched until the DMA drains. An earlier
+version staged 24 rows at a time through a small buffer and overwrote it
+microseconds into the previous chunk's ~2.3 ms transfer, which showed on the
+panel as the bottom of the image drawn twice. If you make the draw path
+incremental again — for animation, say — synchronise on `on_color_trans_done`
+or give each in-flight transfer its own buffer.
+
+Note that neither the serial log nor decoding `image.rgb565` back to PNG can
+detect that class of bug; both look perfectly healthy while the panel is wrong.
+Only looking at the glass catches it.
 
 Panel init is copied from the vendor's stock firmware
 ([`docs/vendor/toy_ai_core_c3_1.28.cc`](../../docs/vendor/toy_ai_core_c3_1.28.cc)),
