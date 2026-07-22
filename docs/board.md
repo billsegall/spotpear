@@ -142,13 +142,39 @@ From the board's `config.json`: target `esp32c3`, with `CONFIG_PM_ENABLE`,
 `CONFIG_FREERTOS_USE_TICKLESS_IDLE`, `CONFIG_USE_ESP_WAKE_WORD`, and
 `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG` appended.
 
+## Parts, from the schematic
+
+Extracted from the vendor schematic ([docs/vendor](vendor/)) — designators read
+out of the PDF's own text layer, not guessed off the image.
+
+| Part | Role |
+| ---- | ---- |
+| ESP32-C3 | MCU |
+| ES8311 | audio codec — mono ADC + DAC, I2C control |
+| NS4150B | class-D speaker amplifier, enabled by `PA_CTRL` (GPIO 11) |
+| PL4054 | single-cell Li-ion linear charger — `CHPROG` sets current, `V_BAT` rail |
+| ME6217C33M5G | 3.3 V LDO |
+| APM2307 | P-channel MOSFET, USB/battery power path |
+| WS2812B | RGB LED (GPIO 2) |
+| SAM8108 | sits on the `SPIQ`/`SPIWP`/`SPIHD` nets — almost certainly the 16 MB QSPI flash, but the marking is not a part number I can confirm |
+
+**Battery is supported**: PL4054 charger, `V_BAT` rail, APM2307 power path from
+`USB_VCC`, and a charge-status LED. Connector present. Cell capacity and the
+`CHPROG` resistor value were not read off the schematic — check the board if the
+charge current matters.
+
+### Microphones
+
+The mic nets are `MICP`/`MICN` plus `MIC0P`/`MIC0N` — **analog differential pairs
+into the ES8311's ADC**, matching the two mic positions in the vendor spec. Not
+PDM, not I2S mics. A separate `MIC_SCL` net runs to the wake-word header.
+
 ## Still unknown
 
-- **Battery + charge circuit** — presence and charge IC unconfirmed. The schematic
-  PDF below would settle it; not yet read.
 - **Wake-word module header** pinout — vendor ships a separate "示例代码-PA4"
-  example for modifying the wake word.
+  example for modifying the wake word. Not traced.
 - **PSRAM** — none reported; assume the C3 has none.
+- **SAM8108** identity, as above.
 
 ## Vendor downloads
 
