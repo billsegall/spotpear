@@ -1,0 +1,4 @@
+# The board carries 16 MB of flash (esptool flash_id: 0x20 0x4018). The ESP-IDF
+# default is 2 MB, which leaves the image header understating the real size and
+# the bootloader logging a mismatch warning on every boot. See docs/board.md.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
