@@ -43,23 +43,35 @@ every new shell; nothing is added to `.bashrc`.
 The C3 uses the built-in USB-Serial-JTAG, so the board enumerates as
 `/dev/ttyACM0` (not `ttyUSB*`).
 
-`/dev/ttyACM0` is `root:dialout 0660` and this user is **not** in `dialout`.
-Access currently depends on the `uaccess` ACL logind grants to the seat owner,
-which is only applied when the device is plugged in during an active local
-session — so after a headless replug or re-enumeration the ACL is absent and
-`idf.py flash` fails with `Path '/dev/ttyACM0' is not readable`.
+`/dev/ttyACM0` is `root:dialout 0660`, so serial access needs `dialout`
+membership. **`bill` was added to `dialout` on 2026-07-22** — no further group
+change is needed.
 
-Replugging at the desk restores it. One-shot fix without replugging:
+Group membership is fixed at login, though, so any shell that logged in before
+that change still runs without it and cannot open the port. Check the running
+session rather than the account:
+
+```sh
+id -nG | tr ' ' '\n' | grep -x dialout   # this process
+id -nG bill                              # the account, per /etc/group
+```
+
+If the first prints nothing while the second lists `dialout`, log out and back
+in (or `newgrp dialout` for a single shell).
+
+Until then, access rides on the `uaccess` ACL logind grants to the seat owner,
+which is only applied when the device is plugged in during an active local
+session. After a headless replug or a re-enumeration — which the board does on
+every reset — the ACL is gone and `idf.py flash` fails with
+`Path '/dev/ttyACM0' is not readable`. Replugging at the desk restores it, or:
 
 ```sh
 sudo setfacl -m u:$USER:rw /dev/ttyACM0   # lost again on re-enumeration
 ```
 
-Permanent fix, still not done here:
-
-```sh
-sudo usermod -aG dialout $USER   # requires logout/login to take effect
-```
+On a machine where the account is genuinely not a member, the durable fix is
+`sudo usermod -aG dialout $USER` — note `-aG`, not `-G`, which would replace
+every supplementary group including `sudo`.
 
 ## Flash size
 
