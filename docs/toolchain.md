@@ -43,23 +43,49 @@ every new shell; nothing is added to `.bashrc`.
 The C3 uses the built-in USB-Serial-JTAG, so the board enumerates as
 `/dev/ttyACM0` (not `ttyUSB*`).
 
-Serial access needs group membership — **not yet done on this machine**:
+`/dev/ttyACM0` is `root:dialout 0660` and this user is **not** in `dialout`.
+Access currently depends on the `uaccess` ACL logind grants to the seat owner,
+which is only applied when the device is plugged in during an active local
+session — so after a headless replug or re-enumeration the ACL is absent and
+`idf.py flash` fails with `Path '/dev/ttyACM0' is not readable`.
+
+Replugging at the desk restores it. One-shot fix without replugging:
+
+```sh
+sudo setfacl -m u:$USER:rw /dev/ttyACM0   # lost again on re-enumeration
+```
+
+Permanent fix, still not done here:
 
 ```sh
 sudo usermod -aG dialout $USER   # requires logout/login to take effect
 ```
 
-## Flash size gotcha
+## Flash size
 
-Default `sdkconfig` builds with `--flash_size 2MB`. The board carries more than
-that (see [board.md](board.md)), so set the real size before shipping anything
-that needs the space:
+ESP-IDF defaults to `--flash_size 2MB`; the board carries 16 MB (see
+[board.md](board.md)). A 2 MB header makes the bootloader log a mismatch warning
+on every boot and caps what the partition table can address.
 
-```sh
-idf.py menuconfig   # Serial flasher config -> Flash size
+Each app therefore commits a `sdkconfig.defaults` with:
+
+```
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 ```
 
-Otherwise the partition table is sized against 2 MB and the rest is wasted.
+`sdkconfig` itself is generated and gitignored. **An existing `sdkconfig` wins
+over `sdkconfig.defaults`** — defaults only fill in symbols that are not already
+set. So in a checkout that has already been built, adding or changing this file
+does nothing until you regenerate:
+
+```sh
+rm sdkconfig && idf.py set-target esp32c3   # or: idf.py menuconfig
+```
+
+New apps need the same file; there is no repo-wide defaults mechanism.
+
+Note this only corrects the image header. Using the extra flash for app data
+takes a partition table change on top.
 
 ## Verification done
 
@@ -67,4 +93,7 @@ Otherwise the partition table is sized against 2 MB and the rest is wasted.
 exit 0, `hello_world.bin` = 0x2bcd0 bytes (~179 KB), 83% of the app partition
 free. See [../apps/hello_world](../apps/hello_world).
 
-Not yet verified: flashing and serial monitor — no board was connected.
+Flashing and serial output verified on hardware 2026-07-22: `idf.py flash` over
+`/dev/ttyACM0`, all three images hash-verified, board boots and prints chip info.
+With the 16 MB default in place it reports `16MB external flash` and the size
+mismatch warning is gone.

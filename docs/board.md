@@ -20,8 +20,8 @@ Read with `esptool.py --port /dev/ttyACM0 flash_id`, 2026-07-22.
 | USB | native USB-Serial/JTAG (no CH340/CP210x bridge) |
 | Flash | **16 MB**, manufacturer `0x20`, device `0x4018` — matches the vendor claim |
 
-Vendor 16 MB figure confirmed. Note the ESP-IDF default `sdkconfig` still builds
-against 2 MB — set flash size in menuconfig, see [toolchain.md](toolchain.md).
+Vendor 16 MB figure confirmed. The ESP-IDF default is 2 MB, so each app commits a
+`sdkconfig.defaults` setting the real size — see [toolchain.md](toolchain.md).
 
 ### Stock partition table
 
