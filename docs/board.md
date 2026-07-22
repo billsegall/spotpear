@@ -165,9 +165,17 @@ charge current matters.
 
 ### Microphones
 
-The mic nets are `MICP`/`MICN` plus `MIC0P`/`MIC0N` — **analog differential pairs
-into the ES8311's ADC**, matching the two mic positions in the vendor spec. Not
-PDM, not I2S mics. A separate `MIC_SCL` net runs to the wake-word header.
+Mic input is **analog differential into the ES8311** — not PDM, not I2S mics.
+The codec runs mono at 24 kHz (confirmed in the boot log), and the ES8311 has a
+single differential mic input, so **only one mic reaches the codec**.
+
+Two differential net pairs appear on the schematic, `MICP`/`MICN` and
+`MIC0P`/`MIC0N`, alongside a `MIC_SCL` net running to the wake-word header. The
+vendor spec lists two mic positions. Which pair lands on the codec and which
+serves the wake-word module has **not** been traced — the second path is most
+likely the wake-word module's own front-end, given it has an I2C-style net and a
+dedicated vendor example. Trace this before assuming stereo capture is possible;
+it almost certainly is not.
 
 ## Still unknown
 
