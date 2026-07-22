@@ -1,9 +1,9 @@
 # Spotpear Toy AI Core C3 Mini — board notes
 
-Status: **silicon confirmed on real hardware, peripherals still undocumented.**
-The "Verified" section was read off the board itself. Everything under "From the
-vendor wiki" is vendor copy, and the pin map remains unknown — confirm before
-writing driver code against it.
+Status: **silicon confirmed on hardware, full pin map recovered.** The "Verified"
+section was read off the board itself; the pin map comes from the vendor's own
+firmware source for this exact board variant. Anything still open is under
+[Still unknown](#still-unknown).
 
 Vendor page:
 <https://spotpear.com/wiki/ESP32-mini-C3-AI-Toy-AI-Core-DeepSeek-XiaoZhi-DouBao-1.54-1.28-0.71-inch-LCD.html>
@@ -79,27 +79,90 @@ logging out: `sudo setfacl -m u:$USER:rw /dev/ttyACM0` — resets on replug.
 | Extra | wake-word module header |
 | Stock firmware | Xiaozhi, provisioned over Wi-Fi, paired at xiaozhi.me |
 
-## Unknown — needs resolving before hardware work
+## Pin map
 
-- **GPIO pin map.** The wiki publishes no pin table. Required for: I2S mic in,
-  I2S/PDM speaker out, LCD (SPI/QSPI + DC/CS/RST/BL), WS2812B data, button GPIOs.
-- **LCD controller part** (likely GC9A01 on the 1.28" round variant — *unverified
-  guess, do not code against it*).
-- **Audio codec / amplifier parts** — mic could be analog, PDM, or I2S; this
-  changes the driver completely.
-- **Battery + charge circuit** — presence and charge IC unknown.
-- **PSRAM** — not reported by `flash_id`; the C3 has no PSRAM support on most
-  variants, so assume none until proven otherwise.
+**This unit is the `toy-ai-core-c3-1.28` variant** — the stock firmware names its
+own source file `./main/boards/toy-ai-core-c3-1.28/toy_ai_core_c3_1.28.cc`.
 
-## How to resolve
+Source: vendor's own `xiaozhi-esp32-2.0.3` release,
+`main/boards/toy-ai-core-c3-1.28/config.h`. This board is **not** in upstream
+[78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) or any public fork — the
+directory exists only in Spotpear's zip (see [Vendor downloads](#vendor-downloads)).
 
-1. ~~Read chip and flash with `esptool.py flash_id`~~ — done, see above.
-2. The stock firmware is [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32),
-   which keeps one directory per supported board under `main/boards/`, each with
-   a `config.h` holding the exact pin assignments. Find the directory matching
-   this board and the pin map comes from there. Not yet located for this
-   specific C3 variant.
-3. Failing that: ask Spotpear for the schematic, or buzz out the FPC connector.
+### Audio — ES8311 codec
+
+Confirmed live in the stock boot log: `Es8311AudioCodec`, ES8311 in **slave
+mode**, duplex, 24 kHz in and out, 16-bit stereo I2S STD mode.
+
+| Function | GPIO |
+| -------- | ---- |
+| I2S MCLK | 10 |
+| I2S BCLK | 8 |
+| I2S WS / LRCK | 6 |
+| I2S DIN (mic → MCU) | 7 |
+| I2S DOUT (MCU → speaker) | 5 |
+| PA enable (amp shutdown) | 11 |
+| I2C SDA (codec control) | 3 |
+| I2C SCL (codec control) | 4 |
+
+Codec I2C address: `ES8311_CODEC_DEFAULT_ADDR` (0x18). PA pin must be driven high
+to get audio out — the amplifier is muted otherwise.
+
+### Display — GC9A01, 240×240
+
+| Function | GPIO |
+| -------- | ---- |
+| SPI SCLK | 0 |
+| SPI MOSI | 21 |
+| SPI CS | 20 |
+| SPI DC | 1 |
+| SPI RESET | not connected (`GPIO_NUM_NC`) |
+
+Bus `SPI2_HOST` at 40 MHz, 16 bpp, **BGR** byte order. Orientation flags used by
+stock: `MIRROR_X = true`, `MIRROR_Y = false`, `SWAP_XY = false`, offsets 0/0. No
+backlight pin is defined. Reset is unwired, so the panel must be reset by command,
+not by GPIO.
+
+The 1.54" sibling variant uses a **GC9D01N** instead — the two are not
+interchangeable.
+
+### Other
+
+| Function | GPIO |
+| -------- | ---- |
+| WS2812B RGB LED | 2 |
+| BOOT button | 9 |
+
+The LED is driven by xiaozhi's `SingleLed` class (addressable, one pixel),
+consistent with the WS2812B in the vendor spec.
+
+### Build config used by stock
+
+From the board's `config.json`: target `esp32c3`, with `CONFIG_PM_ENABLE`,
+`CONFIG_FREERTOS_USE_TICKLESS_IDLE`, `CONFIG_USE_ESP_WAKE_WORD`, and
+`CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG` appended.
+
+## Still unknown
+
+- **Battery + charge circuit** — presence and charge IC unconfirmed. The schematic
+  PDF below would settle it; not yet read.
+- **Wake-word module header** pinout — vendor ships a separate "示例代码-PA4"
+  example for modifying the wake word.
+- **PSRAM** — none reported; assume the C3 has none.
+
+## Vendor downloads
+
+All from the wiki page. Not mirrored into this repo (large binaries).
+
+| What | URL |
+| ---- | --- |
+| Full source (contains this board's `config.h`) | `https://cdn.static.spotpear.com/uploads/picture/learn/ESP32/ESP32-C3-MINI/xiaozhi-esp32-2.0.3.zip` (373 MB) |
+| **Schematic PDF** | `https://cdn.static.spotpear.com/uploads/picture/learn/ESP32/ESP32-C3-MINI/Toy-AI-Core-C3-MINI.pdf` |
+| Stock firmware 1.28" EN | `https://cdn.static.spotpear.com/uploads/picture/learn/ESP32/ESP32-C3-MINI/Toy-AI-Core-C3-1.28-EN-1.bin` |
+| Dimensions | `…/Toy-AI-Core-C3-MINI.step`, `…/Toy-AI-Core-C3-MINI.DWG` |
+
+The source zip also carries prebuilt `releases/v2.0.3_toy-ai-core-c3-1.28/`
+images in both CN and EN — a second route back to stock alongside the local dump.
 
 ## Recovery
 
