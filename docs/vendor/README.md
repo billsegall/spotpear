@@ -7,7 +7,7 @@ they are pinned copies of upstream material that is awkward to re-obtain.
 | ---- | ------ |
 | `config.h`, `config.json`, `toy_ai_core_c3_1.28.cc` | `main/boards/toy-ai-core-c3-1.28/` from Spotpear's `xiaozhi-esp32-2.0.3.zip` |
 | `LICENSE.xiaozhi` | MIT license shipped with that zip |
-| `Toy-AI-Core-C3-MINI-schematic.pdf` | Spotpear wiki, board schematic |
+| `Toy-AI-Core-C3-MINI-schematic.pdf` | Spotpear wiki — **not tracked in git**, see below |
 
 ## Why these are here
 
@@ -26,8 +26,13 @@ xiaozhi-esp32 is MIT, Copyright (c) 2025 Shenzhen Xinzhi Future Technology Co.,
 Ltd. and project contributors — see `LICENSE.xiaozhi`. The source files retain
 that license, not this repo's.
 
-The schematic PDF is Spotpear's, redistributed here as vendor documentation for a
-purchased board.
+The schematic PDF is Spotpear's proprietary document, not MIT. It is **excluded
+from git** (`docs/vendor/*.pdf` in `.gitignore`) — this repo does not redistribute
+it. Download it yourself from the URL below; the parts list derived from it lives
+in [../board.md](../board.md).
+
+Note it does still exist in this repo's history, in commits `413c3ac`..`96603cf`,
+from before that decision.
 
 ## Upstream URLs
 
