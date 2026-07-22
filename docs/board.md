@@ -1,12 +1,65 @@
 # Spotpear Toy AI Core C3 Mini — board notes
 
-Status: **partly documented, no hardware inspected yet.** Everything below is
-either from the vendor wiki or explicitly marked unknown. Nothing here has been
-confirmed against the physical board or a schematic — confirm before writing
-driver code against it.
+Status: **silicon confirmed on real hardware, peripherals still undocumented.**
+The "Verified" section was read off the board itself. Everything under "From the
+vendor wiki" is vendor copy, and the pin map remains unknown — confirm before
+writing driver code against it.
 
 Vendor page:
 <https://spotpear.com/wiki/ESP32-mini-C3-AI-Toy-AI-Core-DeepSeek-XiaoZhi-DouBao-1.54-1.28-0.71-inch-LCD.html>
+
+## Verified on hardware
+
+Read with `esptool.py --port /dev/ttyACM0 flash_id`, 2026-07-22.
+
+| Item | Value |
+| ---- | ----- |
+| Chip | ESP32-C3, QFN32 package, silicon revision **v0.4** |
+| Features | WiFi, BLE |
+| Crystal | 40 MHz |
+| USB | native USB-Serial/JTAG (no CH340/CP210x bridge) |
+| Flash | **16 MB**, manufacturer `0x20`, device `0x4018` — matches the vendor claim |
+
+Vendor 16 MB figure confirmed. Note the ESP-IDF default `sdkconfig` still builds
+against 2 MB — set flash size in menuconfig, see [toolchain.md](toolchain.md).
+
+### Stock partition table
+
+Parsed out of the backup at offset `0x8000`:
+
+```
+# Name,   Type, SubType, Offset,    Size
+nvs,      data, nvs,     0x9000,    16K
+otadata,  data, ota,     0xd000,    8K
+phy_init, data, phy,     0xf000,    4K
+ota_0,    app,  ota_0,   0x20000,   4032K
+ota_1,    app,  ota_1,   0x410000,  4032K
+assets,   data, spiffs,  0x800000,  4000K
+```
+
+Dual-OTA layout with an 8 MB tail: apps get ~4 MB each, a 4 MB SPIFFS `assets`
+partition at `0x800000` holds the Xiaozhi resources (voice prompts, images), and
+roughly 8 MB above that is unallocated.
+
+Reproduce with:
+
+```sh
+dd if=~/esp/spotpear-c3-stock-firmware.bin of=ptable.bin bs=1 skip=32768 count=3072
+python3 $IDF_PATH/components/partition_table/gen_esp32part.py ptable.bin
+```
+
+### Connecting
+
+Enumerates as USB ID `303a:1001` "Espressif USB JTAG/serial debug unit" →
+`/dev/ttyACM0`.
+
+**The board does not enumerate on plug-in alone — the PWR button must be
+pressed.** If `lsusb` shows nothing, that is the first thing to check, before
+suspecting the cable.
+
+`/dev/ttyACM0` is `root:dialout`, so serial access needs `dialout` membership
+(`sudo usermod -aG dialout $USER`, effective next login). For access without
+logging out: `sudo setfacl -m u:$USER:rw /dev/ttyACM0` — resets on replug.
 
 ## From the vendor wiki
 
@@ -35,13 +88,12 @@ Vendor page:
 - **Audio codec / amplifier parts** — mic could be analog, PDM, or I2S; this
   changes the driver completely.
 - **Battery + charge circuit** — presence and charge IC unknown.
-- **Actual flash size on the unit in hand** — read it back with
-  `esptool.py flash_id` once connected, rather than trusting the listing.
+- **PSRAM** — not reported by `flash_id`; the C3 has no PSRAM support on most
+  variants, so assume none until proven otherwise.
 
 ## How to resolve
 
-1. Connect the board and run `esptool.py --port /dev/ttyACM0 flash_id` — gives
-   real flash size and chip revision.
+1. ~~Read chip and flash with `esptool.py flash_id`~~ — done, see above.
 2. The stock firmware is [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32),
    which keeps one directory per supported board under `main/boards/`, each with
    a `config.h` holding the exact pin assignments. Find the directory matching
@@ -51,11 +103,31 @@ Vendor page:
 
 ## Recovery
 
-Stock Xiaozhi firmware is overwritten by the first `idf.py flash`. Back it up
-first if you want the option to return:
+Stock Xiaozhi firmware is overwritten by the first `idf.py flash`.
+
+A full 16 MB dump was taken before any flashing, kept **outside this repo** (too
+large for git):
+
+```
+~/esp/spotpear-c3-stock-firmware.bin
+16777216 bytes (exactly 16 MB)
+sha256 5dc4fde2e86e4d7312752608951dd2d5642be26bdb24e335cf8b04fab05b0701
+```
+
+Starts with `e9` — a valid ESP image header, so the dump is sound.
+
+Retaken with:
 
 ```sh
 esptool.py --port /dev/ttyACM0 read_flash 0 ALL stock-firmware-backup.bin
 ```
+
+Restore with:
+
+```sh
+esptool.py --port /dev/ttyACM0 write_flash 0 ~/esp/spotpear-c3-stock-firmware.bin
+```
+
+The restore is untested — it has never been exercised on this board.
 
 Hold BOOT while plugging in if the board does not enter download mode on its own.
