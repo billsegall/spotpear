@@ -1,0 +1,8 @@
+# Custom layout for the 16 MB flash: a single app plus a large SPIFFS partition
+# to hold the audio. No OTA — this app is flashed over USB, not updated remotely.
+#
+# Name,   Type, SubType, Offset,    Size
+nvs,      data, nvs,     0x9000,    0x6000
+phy_init, data, phy,     0xf000,    0x1000
+factory,  app,  factory, 0x10000,   0x200000
+assets,   data, spiffs,  0x210000,  0xDF0000
