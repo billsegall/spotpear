@@ -1,0 +1,8 @@
+# 16 MB flash: single app, NVS for WiFi, and a SPIFFS partition used as scratch
+# for uploaded images and mic recordings. No OTA.
+#
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0x6000
+phy_init, data, phy,     0xf000,   0x1000
+factory,  app,  factory, 0x10000,  0x200000
+assets,   data, spiffs,  0x210000, 0x400000

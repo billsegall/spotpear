@@ -34,3 +34,8 @@ docs/vendor/*.pdf
 *.pcm
 *.wav
 audio_fs/
+
+# Secrets: WiFi/API credentials stay local, never committed. The .env is created
+# for the user to fill; wifi_credentials.h is generated from it at build time.
+.env
+wifi_credentials.h
