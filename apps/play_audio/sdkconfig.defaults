@@ -1,0 +1,6 @@
+# The board carries 16 MB of flash (esptool flash_id: 0x20 0x4018). See docs/board.md.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+# Custom partition table: single app + a large SPIFFS partition for the audio blob.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

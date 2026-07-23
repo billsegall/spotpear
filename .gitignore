@@ -27,3 +27,10 @@ compile_commands.json
 
 # Vendor schematic: proprietary, kept locally only
 docs/vendor/*.pdf
+
+# Audio assets: copyrighted recordings, kept local. Reproduce with the app's
+# tools/fetch_audio.sh. The repo ships the fetch script, never the audio.
+*.mp3
+*.pcm
+*.wav
+audio_fs/
