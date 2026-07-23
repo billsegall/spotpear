@@ -1,0 +1,11 @@
+# The board carries 16 MB of flash (esptool flash_id: 0x20 0x4018). See docs/board.md.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+# Custom partition table: app + NVS + SPIFFS scratch partition.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# HTTP server: allow larger request bodies (image/audio uploads) and a couple of
+# extra URI handlers.
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+CONFIG_HTTPD_MAX_URI_LEN=512
